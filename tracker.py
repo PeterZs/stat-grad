@@ -500,9 +500,10 @@ class TrackerBase(ABC):
                 shape_offsets_eye = torch.cat([shape_offsets, eyes_offsets], dim=1)
                 exp_offsets_eye = torch.cat([exp_offsets, eyes_offsets], dim=1)
 
-                proj_offsets = (shape_precond_mat @ (shape_offsets_eye).reshape(-1)).reshape(-1, 3) + (exp_precond_mat @ (exp_offsets_eye).reshape(-1)).reshape(-1, 3)
-                optimized_canonical_vertices = canonical_vertices + proj_offsets
-                optimized_canonical_vertices_noneck = canonical_vertices_noneck + proj_offsets
+                proj_offsets = (shape_precond_mat @ (shape_offsets).reshape(-1)).reshape(-1, 3) + (exp_precond_mat @ (exp_offsets).reshape(-1)).reshape(-1, 3)
+                verts_offsets = torch.cat([proj_offsets, eyes_offsets], dim=1)
+                optimized_canonical_vertices = canonical_vertices + verts_offsets
+                optimized_canonical_vertices_noneck = canonical_vertices_noneck + verts_offsets
                 
                 # STEP 2: Transform from canonical space to world space
                 optimized_world_vertices = self.apply_transformation(optimized_canonical_vertices, R, t)
@@ -598,7 +599,7 @@ class TrackerBase(ABC):
                 # Track best result
                 if total_loss.item() < best_loss:
                     best_loss = total_loss.item()
-                    best_offsets = vertex_offsets_canonical.detach().clone()
+                    best_offsets = proj_offsets.detach().clone()
                     best_offsets = torch.cat([best_offsets, eyes_offsets], dim=1)
                 
                 # Save intermediate visualization at specified intervals
