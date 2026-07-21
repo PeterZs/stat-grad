@@ -71,8 +71,10 @@ class TrackerBase(ABC):
             self.vertex_face_mask = torch.from_numpy(flame_mesh_mask['face']).cuda().long()
 
             # Initialize renderer
+            # Must match the resolution read_ground_truth_data() loads the GT at, or the
+            # normal loss compares tensors of different sizes.
             self.diff_renderer = NormalRenderer(
-                512,
+                self.config.size,
                 obj_filename=mesh_file,
                 eyehole_path=env_paths.EYEHOLE_MASK,
                 mouthhole_path=env_paths.MOUTHHOLE_MASK,
@@ -500,7 +502,9 @@ class TrackerBase(ABC):
                 shape_offsets_eye = torch.cat([shape_offsets, eyes_offsets], dim=1)
                 exp_offsets_eye = torch.cat([exp_offsets, eyes_offsets], dim=1)
 
-                proj_offsets = (shape_precond_mat @ (shape_offsets).reshape(-1)).reshape(-1, 3) + (exp_precond_mat @ (exp_offsets).reshape(-1)).reshape(-1, 3)
+                # reshape(-1, 3) drops the batch dim, but eyes_offsets keeps it, so the two
+                # torch.cat calls below need this back as (1, N, 3).
+                proj_offsets = ((shape_precond_mat @ (shape_offsets).reshape(-1)).reshape(-1, 3) + (exp_precond_mat @ (exp_offsets).reshape(-1)).reshape(-1, 3))[None]
                 verts_offsets = torch.cat([proj_offsets, eyes_offsets], dim=1)
                 optimized_canonical_vertices = canonical_vertices + verts_offsets
                 optimized_canonical_vertices_noneck = canonical_vertices_noneck + verts_offsets
@@ -860,6 +864,9 @@ if __name__ == '__main__':
     from omegaconf import OmegaConf
     from pixel3dmm import env_paths
     base_conf = OmegaConf.load(f'{env_paths.CODE_BASE}/configs/tracking.yaml')
+    # pixel3dmm defaults to 256, but its normal maps are predicted at 512; still overridable
+    # from the command line.
+    base_conf.size = 512
     cli_conf = OmegaConf.from_cli()
     cfg = OmegaConf.merge(base_conf, cli_conf)
     print(cfg)
